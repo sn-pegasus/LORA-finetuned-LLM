@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -k -n FE,BE -c blue,green \"next dev\" \"python ../api_server.py\"",
+    "dev:fe": "next dev",
+    "dev:be": "python ../api_server.py",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -19,6 +21,7 @@
     "@types/node": "^20.10.6",
     "@types/react": "^18.2.46",
     "@types/react-dom": "^18.2.18",
+    "concurrently": "^9.0.1",
     "typescript": "^5.3.3",
     "tailwindcss": "^3.4.0",
     "postcss": "^8.4.32",
