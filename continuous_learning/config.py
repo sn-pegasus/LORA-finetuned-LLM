@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 
 # Base directories
-BASE_DIR = Path(".").resolve()
+# Resolve to the project root regardless of current working directory
+BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE_DIR / "data"
 INGEST_DIR = DATA_DIR / "ingestion"
 CURATED_DIR = DATA_DIR / "curated"

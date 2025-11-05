@@ -10,6 +10,7 @@ import torch
 import re
 import json
 from typing import Optional, List, Dict
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -71,6 +72,11 @@ def load_model():
     print("[*] Loading model (this takes about 60-90 seconds)...")
     
     adapter_path = get_current_adapter_path("./llama8b-production-v1/checkpoint-55")
+    # Resolve adapter path to an absolute local directory
+    adapter_path_obj = Path(adapter_path)
+    if not adapter_path_obj.is_absolute():
+        adapter_path_obj = (Path(__file__).resolve().parent / adapter_path_obj).resolve()
+    adapter_path = str(adapter_path_obj)
     base_model_id = "meta-llama/Llama-3.2-3B"
     
     try:
