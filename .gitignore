@@ -23,11 +23,12 @@ wheels/
 .installed.cfg
 *.egg
 
-# Model files (large files - uncomment if you want to exclude them)
-# llama8b-production-v1/
-# *.safetensors
-# *.pt
-# *.pth
+# Model files (large files - exclude training checkpoints)
+llama8b-production-v1/checkpoint-*/optimizer.pt
+llama8b-production-v1/checkpoint-*/rng_state.pth
+llama8b-production-v1/checkpoint-*/scheduler.pt
+llama8b-production-v1/checkpoint-*/trainer_state.json
+llama8b-production-v1/checkpoint-*/training_args.bin
 
 # Node.js / Frontend
 node_modules/
