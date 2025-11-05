@@ -11,6 +11,7 @@ interface SidebarProps {
   sessions?: ChatSession[]
   activeSessionId?: string | null
   onSelectSession?: (id: string) => void
+  onDeleteSession?: (id: string) => void
 }
 
 export default function Sidebar({
@@ -21,6 +22,7 @@ export default function Sidebar({
   sessions = [],
   activeSessionId = null,
   onSelectSession,
+  onDeleteSession,
 }: SidebarProps) {
   useEffect(() => {
     if (isOpen) {
@@ -91,21 +93,35 @@ export default function Sidebar({
           <div className="flex-1 overflow-y-auto p-2">
             <div className="space-y-1">
               {sessions.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => onSelectSession && onSelectSession(s.id)}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    s.id === activeSessionId
-                      ? 'bg-chat-gpt-bg-tertiary text-chat-gpt-text'
-                      : 'text-chat-gpt-text-secondary hover:bg-chat-gpt-bg-secondary'
-                  }`}
-                  title={new Date(s.createdAt).toLocaleString()}
-                >
-                  <div className="truncate">{s.title || 'New Chat'}</div>
-                  <div className="mt-0.5 text-[10px] opacity-70">
-                    {new Date(s.updatedAt || s.createdAt).toLocaleString()}
-                  </div>
-                </button>
+                <div key={s.id} className={`group flex items-center justify-between rounded-lg px-2 py-2 ${
+                  s.id === activeSessionId ? 'bg-chat-gpt-bg-tertiary' : 'hover:bg-chat-gpt-bg-secondary'
+                }`}>
+                  <button
+                    onClick={() => onSelectSession && onSelectSession(s.id)}
+                    className={`flex-1 truncate text-left text-sm ${
+                      s.id === activeSessionId ? 'text-chat-gpt-text' : 'text-chat-gpt-text-secondary'
+                    }`}
+                    title={new Date(s.createdAt).toLocaleString()}
+                  >
+                    <div className="truncate">{s.title || 'New Chat'}</div>
+                    <div className="mt-0.5 text-[10px] opacity-70">
+                      {new Date(s.updatedAt || s.createdAt).toLocaleString()}
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteSession && onDeleteSession(s.id)
+                    }}
+                    className="ml-2 hidden shrink-0 rounded p-1 text-chat-gpt-text-secondary hover:bg-chat-gpt-bg-tertiary group-hover:block"
+                    aria-label="Delete chat"
+                    title="Delete chat"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2m1 0v12a2 2 0 01-2 2H8a2 2 0 01-2-2V7h10z" />
+                    </svg>
+                  </button>
+                </div>
               ))}
             </div>
           </div>

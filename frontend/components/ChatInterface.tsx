@@ -16,6 +16,8 @@ export default function ChatInterface() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [userId] = useState(() => `user_${Date.now()}`)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isModelReady, setIsModelReady] = useState(false)
+  const [isBackendReachable, setIsBackendReachable] = useState<boolean | null>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -73,6 +75,29 @@ export default function ChatInterface() {
   useEffect(() => {
     scrollToBottom()
   }, [messages, scrollToBottom])
+
+  // Poll backend health until ready
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
+    const check = async () => {
+      try {
+        const res = await fetch('/api/health', { cache: 'no-store' })
+        if (!res.ok) throw new Error('not ok')
+        const data = await res.json()
+        setIsBackendReachable(true)
+        setIsModelReady(Boolean(data?.model_loaded))
+      } catch {
+        setIsBackendReachable(false)
+        setIsModelReady(false)
+      } finally {
+        timer = setTimeout(check, 2000)
+      }
+    }
+    check()
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [])
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return
@@ -179,6 +204,33 @@ export default function ChatInterface() {
     setIsSidebarOpen(false)
   }
 
+  const handleDeleteSession = (id: string) => {
+    const target = sessions.find(s => s.id === id)
+    if (!target) return
+    const created = new Date(target.createdAt)
+    const confirmMsg = `Delete chat?\n\nTitle: ${target.title || 'Untitled'}\nCreated: ${created.toLocaleString()}`
+    if (!confirm(confirmMsg)) return
+
+    setSessions(prev => prev.filter(s => s.id !== id))
+    if (activeSessionId === id) {
+      // switch to newest remaining or create a new one if none
+      const remaining = sessions.filter(s => s.id !== id)
+      if (remaining.length > 0) {
+        setActiveSessionId(remaining[0].id)
+      } else {
+        const first: ChatSession = {
+          id: `sess_${Date.now()}`,
+          title: 'New Chat',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: [],
+        }
+        setSessions([first])
+        setActiveSessionId(first.id)
+      }
+    }
+  }
+
   return (
     <div className="flex h-full w-full overflow-hidden">
       <Sidebar
@@ -189,6 +241,7 @@ export default function ChatInterface() {
         sessions={sessions}
         activeSessionId={activeSessionId}
         onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
       />
       
       <div className="flex flex-1 flex-col">
@@ -215,6 +268,25 @@ export default function ChatInterface() {
           <h1 className="text-sm font-semibold text-chat-gpt-text">
             Pharmaceutical Assistant
           </h1>
+          <div className="ml-auto flex items-center gap-2 text-xs">
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full ${
+                isBackendReachable === false
+                  ? 'bg-red-500'
+                  : isModelReady
+                  ? 'bg-green-500'
+                  : 'bg-yellow-500'
+              }`}
+              aria-hidden
+            />
+            <span className="text-chat-gpt-text-secondary">
+              {isBackendReachable === false
+                ? 'Backend offline'
+                : isModelReady
+                ? 'Model ready'
+                : 'Loading model...'}
+            </span>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -254,7 +326,7 @@ export default function ChatInterface() {
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
-          disabled={isLoading}
+          disabled={isLoading || !isModelReady}
         />
       </div>
     </div>
