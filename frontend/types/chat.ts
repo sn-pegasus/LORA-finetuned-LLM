@@ -6,6 +6,14 @@ export interface Message {
   isError?: boolean
 }
 
+export interface ChatSession {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  messages: Message[]
+}
+
 export interface ChatRequest {
   message: string
   conversation_history?: Array<{

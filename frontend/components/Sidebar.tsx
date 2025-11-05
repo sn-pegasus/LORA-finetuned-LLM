@@ -1,12 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
+import { ChatSession } from '@/types/chat'
 
 interface SidebarProps {
   isOpen: boolean
   onClose: () => void
   onNewChat: () => void
   onClearChat: () => void
+  sessions?: ChatSession[]
+  activeSessionId?: string | null
+  onSelectSession?: (id: string) => void
 }
 
 export default function Sidebar({
@@ -14,6 +18,9 @@ export default function Sidebar({
   onClose,
   onNewChat,
   onClearChat,
+  sessions = [],
+  activeSessionId = null,
+  onSelectSession,
 }: SidebarProps) {
   useEffect(() => {
     if (isOpen) {
@@ -83,12 +90,23 @@ export default function Sidebar({
 
           <div className="flex-1 overflow-y-auto p-2">
             <div className="space-y-1">
-              <button
-                onClick={onClearChat}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm text-chat-gpt-text-secondary transition-colors hover:bg-chat-gpt-bg-secondary"
-              >
-                Clear Chat History
-              </button>
+              {sessions.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => onSelectSession && onSelectSession(s.id)}
+                  className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    s.id === activeSessionId
+                      ? 'bg-chat-gpt-bg-tertiary text-chat-gpt-text'
+                      : 'text-chat-gpt-text-secondary hover:bg-chat-gpt-bg-secondary'
+                  }`}
+                  title={new Date(s.createdAt).toLocaleString()}
+                >
+                  <div className="truncate">{s.title || 'New Chat'}</div>
+                  <div className="mt-0.5 text-[10px] opacity-70">
+                    {new Date(s.updatedAt || s.createdAt).toLocaleString()}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -100,6 +118,12 @@ export default function Sidebar({
               <p className="mt-1 text-xs text-chat-gpt-text-secondary">
                 Powered by LLaMA 3.2
               </p>
+              <button
+                onClick={onClearChat}
+                className="mt-3 w-full rounded-lg border border-chat-gpt-border bg-transparent px-3 py-1.5 text-xs text-chat-gpt-text-secondary transition-colors hover:bg-chat-gpt-bg-tertiary"
+              >
+                Clear Current Chat
+              </button>
             </div>
           </div>
         </div>

@@ -1,13 +1,17 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import MessageList from './MessageList'
 import ChatInput from './ChatInput'
 import Sidebar from './Sidebar'
-import { Message } from '@/types/chat'
+import { Message, ChatSession } from '@/types/chat'
+
+const SESSIONS_STORAGE_KEY = 'offline-chatbot:sessions'
+const SESSION_LIMIT = 10
 
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [userId] = useState(() => `user_${Date.now()}`)
@@ -16,6 +20,55 @@ export default function ChatInterface() {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
+
+  const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || null, [sessions, activeSessionId])
+  const messages = activeSession?.messages ?? []
+
+  // Load sessions from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSIONS_STORAGE_KEY)
+      if (raw) {
+        const parsed: ChatSession[] = JSON.parse(raw)
+        // revive dates
+        const revived = parsed.map(s => ({
+          ...s,
+          messages: (s.messages || []).map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
+        }))
+        setSessions(revived)
+        setActiveSessionId(revived[0]?.id || null)
+      } else {
+        // create initial empty session
+        const first: ChatSession = {
+          id: `sess_${Date.now()}`,
+          title: 'New Chat',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: [],
+        }
+        setSessions([first])
+        setActiveSessionId(first.id)
+      }
+    } catch {
+      // fallback to one new session
+      const first: ChatSession = {
+        id: `sess_${Date.now()}`,
+        title: 'New Chat',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
+      }
+      setSessions([first])
+      setActiveSessionId(first.id)
+    }
+  }, [])
+
+  // Persist sessions
+  useEffect(() => {
+    try {
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions))
+    } catch {}
+  }, [sessions])
 
   useEffect(() => {
     scrollToBottom()
@@ -31,7 +84,12 @@ export default function ChatInterface() {
       timestamp: new Date(),
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+      ...s,
+      title: s.messages.length === 0 ? userMessage.content.slice(0, 40) || 'New Chat' : s.title,
+      updatedAt: new Date().toISOString(),
+      messages: [...s.messages, userMessage]
+    } : s))
     setIsLoading(true)
 
     try {
@@ -63,7 +121,11 @@ export default function ChatInterface() {
         timestamp: new Date(),
       }
 
-      setMessages((prev) => [...prev, assistantMessage])
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+        ...s,
+        updatedAt: new Date().toISOString(),
+        messages: [...s.messages, assistantMessage]
+      } : s))
     } catch (error) {
       console.error('Error sending message:', error)
       const errorMessage: Message = {
@@ -73,21 +135,48 @@ export default function ChatInterface() {
         timestamp: new Date(),
         isError: true,
       }
-      setMessages((prev) => [...prev, errorMessage])
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+        ...s,
+        updatedAt: new Date().toISOString(),
+        messages: [...s.messages, errorMessage]
+      } : s))
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleNewChat = () => {
-    setMessages([])
+    // Enforce session limit with confirmation to delete oldest
+    if (sessions.length >= SESSION_LIMIT) {
+      const oldest = [...sessions].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0]
+      const created = new Date(oldest.createdAt)
+      const confirmMsg = `You reached the chat limit (${SESSION_LIMIT}).\n\nOldest chat will be deleted:\n- Title: ${oldest.title || 'Untitled'}\n- Created: ${created.toLocaleString()}\n\nProceed?`
+      const ok = confirm(confirmMsg)
+      if (!ok) return
+      setSessions(prev => prev.filter(s => s.id !== oldest.id))
+    }
+    const newSession: ChatSession = {
+      id: `sess_${Date.now()}`,
+      title: 'New Chat',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    }
+    setSessions(prev => [newSession, ...prev])
+    setActiveSessionId(newSession.id)
     setIsSidebarOpen(false)
   }
 
   const handleClearChat = () => {
     if (confirm('Are you sure you want to clear all messages?')) {
-      setMessages([])
+      if (!activeSessionId) return
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [], updatedAt: new Date().toISOString() } : s))
     }
+  }
+
+  const handleSelectSession = (id: string) => {
+    setActiveSessionId(id)
+    setIsSidebarOpen(false)
   }
 
   return (
@@ -97,6 +186,9 @@ export default function ChatInterface() {
         onClose={() => setIsSidebarOpen(false)}
         onNewChat={handleNewChat}
         onClearChat={handleClearChat}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={handleSelectSession}
       />
       
       <div className="flex flex-1 flex-col">
