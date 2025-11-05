@@ -58,7 +58,7 @@ const MessageBubble = memo(function MessageBubble({ message }: MessageBubbleProp
         <div className="prose prose-invert max-w-none">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            className="text-chat-gpt-text"
+            className="text-chat-gpt-text whitespace-pre-wrap"
             components={{
               p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
               code: ({ children, className }) => {

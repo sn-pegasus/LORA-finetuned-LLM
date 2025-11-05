@@ -101,6 +101,20 @@ export default function ChatInterface() {
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return
+    // Ensure there is an active session
+    let currentSessionId = activeSessionId
+    if (!currentSessionId) {
+      const newSession: ChatSession = {
+        id: `sess_${Date.now()}`,
+        title: 'New Chat',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
+      }
+      setSessions(prev => [newSession, ...prev])
+      setActiveSessionId(newSession.id)
+      currentSessionId = newSession.id
+    }
 
     const userMessage: Message = {
       id: `msg_${Date.now()}`,
@@ -109,7 +123,7 @@ export default function ChatInterface() {
       timestamp: new Date(),
     }
 
-    setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+    setSessions(prev => prev.map(s => s.id === currentSessionId ? {
       ...s,
       title: s.messages.length === 0 ? userMessage.content.slice(0, 40) || 'New Chat' : s.title,
       updatedAt: new Date().toISOString(),
@@ -118,38 +132,59 @@ export default function ChatInterface() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/chat', {
+      // Create a placeholder assistant message and stream in chunks
+      const placeholderId = `msg_${Date.now() + 1}`
+      setSessions(prev => prev.map(s => s.id === currentSessionId ? {
+        ...s,
+        messages: [...s.messages, { id: placeholderId, role: 'assistant', content: '', timestamp: new Date() }]
+      } : s))
+
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: content.trim(),
-          conversation_history: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          conversation_history: messages.map((m) => ({ role: m.role, content: m.content })),
           user_id: userId,
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to get response')
+      if (!response.ok || !response.body) {
+        throw new Error('Failed to stream response')
       }
 
-      const data = await response.json()
-      
-      const assistantMessage: Message = {
-        id: `msg_${Date.now() + 1}`,
-        role: 'assistant',
-        content: data.response,
-        timestamp: new Date(),
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue
+          try {
+            const json = JSON.parse(line.replace(/^data:\s*/, ''))
+            if (json.done) continue
+            const chunk: string = json.content || ''
+            if (!chunk) continue
+            setSessions(prev => prev.map(s => s.id === currentSessionId ? {
+              ...s,
+              updatedAt: new Date().toISOString(),
+              messages: s.messages.map(m => m.id === placeholderId ? { ...m, content: (m.content || '') + chunk } : m)
+            } : s))
+          } catch {}
+        }
       }
 
-      setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+      // finalize timestamp
+      setSessions(prev => prev.map(s => s.id === currentSessionId ? {
         ...s,
         updatedAt: new Date().toISOString(),
-        messages: [...s.messages, assistantMessage]
       } : s))
     } catch (error) {
       console.error('Error sending message:', error)
@@ -160,7 +195,7 @@ export default function ChatInterface() {
         timestamp: new Date(),
         isError: true,
       }
-      setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+      setSessions(prev => prev.map(s => s.id === currentSessionId ? {
         ...s,
         updatedAt: new Date().toISOString(),
         messages: [...s.messages, errorMessage]
@@ -281,7 +316,7 @@ export default function ChatInterface() {
             />
             <span className="text-chat-gpt-text-secondary">
               {isBackendReachable === false
-                ? 'Backend offline'
+                ? 'Starting backend...'
                 : isModelReady
                 ? 'Model ready'
                 : 'Loading model...'}
