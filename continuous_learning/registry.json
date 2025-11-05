@@ -1,0 +1,13 @@
+{
+  "created_ts": 1761579715.4181993,
+  "current_adapter_path": "./llama8b-production-v1/checkpoint-55",
+  "dataset_snapshots": [],
+  "adapter_versions": [
+    {
+      "ts": 1761579715.4181993,
+      "path": "./llama8b-production-v1/checkpoint-55",
+      "note": "switch to 8B adapter checkpoint-55"
+    }
+  ],
+  "changelog": []
+}
